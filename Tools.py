@@ -3,6 +3,23 @@ from mathutils import Matrix
 from util import *
 from node_s import *
 import webbrowser
+import os
+import urllib
+from zipfile import ZipFile
+import traceback
+
+def sv_get_local_path():
+    sv_script_paths = os.path.normpath(os.path.dirname(__file__))
+    bl_addons_path = os.path.dirname(sv_script_paths)
+    sv_version = os.path.normpath(os.path.join(sv_script_paths, 'version'))
+    with open(sv_version) as sv_local_file:
+        sv_version_local = next(sv_local_file).strip()
+    return sv_script_paths, bl_addons_path, sv_version_local, sv_version
+
+# global veriables in tools
+sv_script_paths, bl_addons_path, sv_version_local, sv_version = sv_get_local_path()
+sv_new_version = False
+
 
 class SverchokUpdateAll(bpy.types.Operator):
     """Sverchok update all"""
@@ -40,9 +57,67 @@ class SverchokHome(bpy.types.Operator):
                 self.report({'WARNING'}, "Error in opening the page %s." % (page))
         return {'FINISHED'}
 
+class SverchokCheckForUpgrades(bpy.types.Operator):
+    """ Check if there new version on github """
+    bl_idname = "node.sverchok_check_for_upgrades"
+    bl_label = "Sverchok check for new version"
+    bl_options = {'REGISTER'}
+    
+    def execute(self, context):
+        global sv_new_version
+        os.curdir = sv_script_paths
+        os.chdir(os.curdir)
+        try:
+            with open(sv_version) as sv_local_file:
+                version_local = next(sv_local_file).strip()
+        except:
+            report({'INFO'}, "Failed to read local version")
+            return {'CANCELLED'}
+        try:
+            url = 'https://raw.githubusercontent.com/nortikin/sverchok/master/version'
+            version_url = urllib.request.urlopen(url).read().strip().decode()
+        except urllib.error.URLError:
+            traceback.print_exc()
+            report({'INFO'}, "Unable to contact github, or SSL not compiled.")
+            return {'CANCELLED'}
+        
+        if version_local != version_url:
+            sv_new_version = True
+            self.report({'INFO'}, "There is new version.")
+        else:
+            self.report({'INFO'}, "You already have latest version of Sverchok, no need to upgrade.")
+        return {'FINISHED'}
+
+class SverchokUpdateAddon(bpy.types.Operator):
+    """ Sverchok update addon without any browsing and so on. After - press F8 to reload addons """
+    bl_idname = "node.sverchok_update_addon"
+    bl_label = "Sverchok update addon"
+    bl_options = {'REGISTER'}
+    
+    def execute(self, context):
+        global sv_new_version
+        os.curdir = bl_addons_path
+        os.chdir(os.curdir)
+        try:
+            url = 'https://github.com/nortikin/sverchok/archive/master.zip'
+            file = urllib.request.urlretrieve(url,os.path.normpath(os.path.join(os.curdir,'master.zip')))
+        except:
+            self.report({'ERROR'}, "Cannot get archive from Internet")
+            return {'CANCELLED'}
+        try:
+            ZipFile(file[0]).extractall(path=os.curdir, members=None, pwd=None)
+            os.remove(file[0])
+            sv_new_version = False
+            self.report({'INFO'}, "Unzipped, reload addons with F8 button")
+        except:
+            self.report({'ERROR'}, "Cannot extract files")
+            return {'CANCELLED'}
+            
+        return {'FINISHED'}
+
 class SverchokToolsMenu(bpy.types.Panel):
     bl_idname = "Sverchok_tools_menu"
-    bl_label = "Sverchok 0.2.8"
+    bl_label = "Sverchok "+sv_version_local
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
     bl_category = 'Sverchok'
@@ -104,6 +179,10 @@ class SverchokToolsMenu(bpy.types.Panel):
                 else:
                     split.prop(tree, 'sv_animate',icon='LOCKED',text=' ')
                     
+        if sv_new_version:
+            layout.column().operator(SverchokUpdateAddon.bl_idname, text='Upgrade Sverchok addon')
+        else:
+            layout.column().operator(SverchokCheckForUpgrades.bl_idname, text='Check for new version')
         #       row.prop(tree, 'sv_bake',text=' ')
   
         #box = layout.box()
@@ -166,6 +245,8 @@ class ToolsNode(Node, SverchCustomTreeNode):
 
 def register():
     bpy.utils.register_class(SverchokUpdateAll)
+    bpy.utils.register_class(SverchokCheckForUpgrades)
+    bpy.utils.register_class(SverchokUpdateAddon)
     bpy.utils.register_class(SverchokPurgeCache)
     bpy.utils.register_class(SverchokHome)
     bpy.utils.register_class(SverchokToolsMenu)
@@ -176,6 +257,8 @@ def unregister():
     bpy.utils.unregister_class(SverchokToolsMenu)
     bpy.utils.unregister_class(SverchokHome)
     bpy.utils.unregister_class(SverchokPurgeCache)
+    bpy.utils.unregister_class(SverchokUpdateAddon)
+    bpy.utils.unregister_class(SverchokCheckForUpgrades)
     bpy.utils.unregister_class(SverchokUpdateAll)
 
 if __name__ == "__main__":

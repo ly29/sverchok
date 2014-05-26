@@ -27,7 +27,7 @@ import node_Viewer
 from node_Viewer import *
 from util import *
 
-global temp_handle
+callback_dict = {}
 SpaceView3D = bpy.types.SpaceView3D
 
 # ------------------------------------------------------------------------ #
@@ -48,37 +48,35 @@ def tag_redraw_all_view3d():
 
 
 def callback_enable(name, sl1, sl2, sl3, vs, colo, tran, shade):
-    global temp_handle
-    handle = handle_read(name)
-    if handle[0]:
+    global callback_dict
+    if name in callback_dict:
         return
     handle_view = SpaceView3D.draw_handler_add(draw_callback_view, (name, sl1, sl2, sl3, vs, colo, tran, shade), 'WINDOW', 'POST_VIEW')
-    handle_write(name, handle_view)
+    callback_dict[name]=handle_view
     tag_redraw_all_view3d()
     
 
 def callback_disable_all():
-    global temp_handle
-    temp_list = list(temp_handle.keys())
+    global callback_dict
+    temp_list = list(callback_dict.keys())
     for name in temp_list:
-        callback_disable(name)
+        if name:
+            callback_disable(name)
     
 def callback_disable(name):
-    global temp_handle
-    handle = handle_read(name)
-    if not handle[0]:
+    global callback_dict
+    handle_view = callback_dict.get(name,None)
+    if not handle_view:
         return
-    handle_view = handle[1]
     SpaceView3D.draw_handler_remove(handle_view, 'WINDOW')
-    handle_delete(name)
+    del callback_dict[name]
     tag_redraw_all_view3d()
    
     
 def draw_callback_view(handle, sl1, sl2, sl3, vs, colo, tran, shade):
     context = bpy.context
-
     from bgl import glEnable, glDisable, glColor3f, glVertex3f, glPointSize, glLineWidth, glBegin, glEnd, glLineStipple, GL_POINTS, GL_LINE_STRIP, GL_LINES, GL_LINE, GL_LINE_STIPPLE, GL_POLYGON, GL_POLYGON_STIPPLE, GL_POLYGON_SMOOTH, glPolygonStipple
-    
+    from bgl import GL_TRIANGLES, GL_QUADS, glColor4f
     # define globals, separate edgs from pols
     if tran:
         polyholy = GL_POLYGON_STIPPLE
@@ -253,7 +251,6 @@ def draw_callback_view(handle, sl1, sl2, sl3, vs, colo, tran, shade):
                 k = verlen
             oblen = len(data_polygons[k])
             for j, pol in enumerate(data_polygons[k]):
-                glBegin(GL_POLYGON)
                 if shade:
                     normal_no_ = mathutils.geometry.normal(
                             data_vector[k][pol[0]],
@@ -268,10 +265,28 @@ def draw_callback_view(handle, sl1, sl2, sl3, vs, colo, tran, shade):
                     randa = ((j/oblen) + coloa) / 2.5
                     randb = ((j/oblen) + colob) / 2.5
                     randc = ((j/oblen) + coloc) / 2.5
-                glColor3f(randa+0.2, randb+0.2, randc+0.2)
-                for point in pol:
-                    vec_corrected = data_matrix[i]*data_vector[k][int(point)]
-                    glVertex3f(*vec_corrected)
+                if len(pol)>4:
+                    glBegin(GL_TRIANGLES)
+                    glColor4f(randa+0.2, randb+0.2, randc+0.2,0.5)
+                    #glColor3f(randa+0.2, randb+0.2, randc+0.2)
+                    v=[data_vector[k][i] for i in pol]
+                    tess_poly=mathutils.geometry.tessellate_polygon([v])
+                    for a,b,c in tess_poly:
+                        glVertex3f(*(data_matrix[i]*v[a]))
+                        glVertex3f(*(data_matrix[i]*v[b]))
+                        glVertex3f(*(data_matrix[i]*v[c]))
+                elif len(pol)==4:
+                    glBegin(GL_POLYGON)
+                    glColor3f(randa+0.2, randb+0.2, randc+0.2)
+                    for point in pol:
+                        vec_corrected = data_matrix[i]*data_vector[k][int(point)]
+                        glVertex3f(*vec_corrected)
+                else:
+                    glBegin(GL_TRIANGLES)
+                    glColor3f(randa+0.2, randb+0.2, randc+0.2)
+                    for point in pol:
+                        vec_corrected = data_matrix[i]*data_vector[k][int(point)]
+                        glVertex3f(*vec_corrected)
                 glEnd()
                 glPointSize(1.75)
                 glLineWidth(1.0)

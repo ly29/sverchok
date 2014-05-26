@@ -5,14 +5,15 @@ from bpy.types import NodeTree, Node, NodeSocket, NodeSocketStandard
 import nodeitems_utils
 from nodeitems_utils import NodeCategory, NodeItem
 from mathutils import Matrix
-from util import makeTreeUpdate2, speedUpdate, SvGetSocketInfo
+from util import makeTreeUpdate2, speedUpdate, SvGetSocketInfo, SvGetSocket,SvSetSocket, get_update_lists, updateNode
 from bpy.app.handlers import persistent
+
 
 class SvColors(bpy.types.PropertyGroup):
     """ Class for colors CollectionProperty """
     color = bpy.props.FloatVectorProperty(
         name="svcolor", description="sverchok color", default=(0.055,0.312,0.5), min=0, max=1,
-        step=1, precision=3, subtype='COLOR_GAMMA', size=3)
+        step=1, precision=3, subtype='COLOR_GAMMA', size=3, update=updateNode)
 
 
 class MatrixSocket(NodeSocket):
@@ -21,6 +22,15 @@ class MatrixSocket(NodeSocket):
     bl_idname = "MatrixSocket"
     bl_label = "Matrix Socket"
     prop_name = StringProperty(default='')
+    # beta interface only use for debug, might change
+    def sv_get(self,default=None):
+        if self.links and self.is_output:
+            return SvGetSocket(self)
+        else:
+            return default
+            
+    def sv_set(self,data):
+        SvSetSocket(self,data)
 
     def draw(self, context, layout, node, text):
     #    if not self.is_output and not self.is_linked and self.prop_name:
@@ -57,38 +67,71 @@ class ObjectSocket(NodeSocket):
 '''
 
 class VerticesSocket(NodeSocketStandard):
-        '''String Vertices - one string'''
-        bl_idname = "VerticesSocket"
-        bl_label = "Vertices Socket"
-        prop_name = StringProperty(default='')
+    '''String Vertices - one string'''
+    bl_idname = "VerticesSocket"
+    bl_label = "Vertices Socket"
+    prop_name = StringProperty(default='')
+        
+    # beta interface only use for debug, might change
+    def sv_get(self,default=None):
+        if self.links and self.is_output:
+            return SvGetSocket(self)
+        else:
+            return default
+            
+    def sv_set(self,data):
+        SvSetSocket(self,data)
 
-        def draw(self, context, layout, node, text):
-        #    if not self.is_output and not self.is_linked and self.prop_name:
-        #        layout.prop(node,self.prop_name,expand=False)
-            if self.is_linked:
-                layout.label(text + '. '+ SvGetSocketInfo(self))
-            else:
-                layout.label(text)
-                
-        def draw_color(self, context, node):
-            return(0.9,0.6,0.2,1.0)
+    def draw(self, context, layout, node, text):
+    #    if not self.is_output and not self.is_linked and self.prop_name:
+    #        layout.prop(node,self.prop_name,expand=False)
+        if self.is_linked:
+            layout.label(text + '. '+ SvGetSocketInfo(self))
+        else:
+            layout.label(text)
+            
+    def draw_color(self, context, node):
+        return(0.9,0.6,0.2,1.0)
 
 class StringsSocket(NodeSocketStandard):
-        '''String any type - one string'''
-        bl_idname = "StringsSocket"
-        bl_label = "Strings Socket"
-        prop_name = StringProperty(default='')
-        
-        def draw(self, context, layout, node, text):
-            if not self.is_output and not self.is_linked and self.prop_name:
-                layout.prop(node,self.prop_name)
-            elif self.is_linked:
-                layout.label(text + '. ' + SvGetSocketInfo(self))
-            else:
-                layout.label(text)
-                    
-        def draw_color(self, context, node):
-            return(0.6,1.0,0.6,1.0)
+    '''String any type - one string'''
+    bl_idname = "StringsSocket"
+    bl_label = "Strings Socket"
+            
+    prop_name = StringProperty(default='')
+    
+    def sv_get(self,default=None):
+        if self.links and not self.is_output:
+            out = SvGetSocket(self)
+            if out:
+                return out
+        if self.prop_name:
+            return [[getattr(self.node,self.prop_name)]]
+        return default
+            
+    def sv_set(self,data):
+        SvSetSocket(self,data)
+    
+    def draw(self, context, layout, node, text):
+        if self.prop_name:
+            if self.is_output:
+                t=text
+                print('Warning output socket:',self.name,'in node:',node.name,'has property attached')
+            else:    
+                prop=node.rna_type.properties.get(self.prop_name,None)
+                t=prop.name if prop else text
+        else:
+            t=text
+            
+        if not self.is_output and not self.is_linked and self.prop_name:
+            layout.prop(node,self.prop_name)
+        elif self.is_linked:
+            layout.label(t + '. ' + SvGetSocketInfo(self))
+        else:
+            layout.label(t)
+                
+    def draw_color(self, context, node):
+        return(0.6,1.0,0.6,1.0)
         
 class SverchCustomTree(NodeTree):
     ''' Sverchok - architectural node programming of geometry in low level '''
@@ -104,6 +147,9 @@ class SverchCustomTree(NodeTree):
     sv_show = BoolProperty(name="Show", default=True, update=updateTree)
     sv_bake = BoolProperty(name="Bake", default=True )
     
+    # get update list for debug info, tuple (fulllist,dictofpartiallists)
+    def get_update_lists(self):
+        return get_update_lists(self)
         
     def update(self):
         '''
@@ -137,7 +183,8 @@ def make_categories():
         SverchNodeCategory("SVERCHOK_B", "SVERCHOK basic", items=[
             # basic nodes
             NodeItem("ObjectsNode", label="Objects in"),
-            NodeItem("BakeryNode", label="Bake all"),
+            NodeItem("BmeshViewerNode", label="BMesh View"),
+            # NodeItem("BakeryNode", label="Bake all"),
             NodeItem("ViewerNode", label="Viewer draw"),
             NodeItem("ViewerNode_text", label="Viewer text"),
             NodeItem("IndexViewerNode", label="Viewer INDX"),
@@ -145,15 +192,17 @@ def make_categories():
             NodeItem("SvTextOutNode",  label="Text out"),
             NodeItem("WifiInNode", label="Wifi in"),
             NodeItem("WifiOutNode", label="Wifi out"),
-            NodeItem("Test1Node", label="Test1"),
-            NodeItem("Test2Node", label="Test2"),
+            # NodeItem("Test1Node", label="Test1"),
+            # NodeItem("Test2Node", label="Test2"),
             NodeItem("SvFrameInfoNode", label="Frame info"),
             NodeItem("ToolsNode", label="Tools"),
             NodeItem("NoteNode", label="Note"),
+            NodeItem("GTextNode", label="GText"),
+            # NodeItem("SvDebugPrintNode", label="debug"),
             ]),
         SverchNodeCategory("SVERCHOK_L", "SVERCHOK list", items=[
             # lists nodes
-            NodeItem("ListLevelsNode", label="List Levels"),
+            NodeItem("ListLevelsNode", label="List Del Levels"),
             NodeItem("ListJoinNode", label="List Join"),
             NodeItem("ListDecomposeNode", label="List Decompose"),
             NodeItem("ZipNode", label="List Zip"),
@@ -175,16 +224,19 @@ def make_categories():
             ]),
         SverchNodeCategory("SVERCHOK_N", "SVERCHOK number", items=[
             # numbers, formula nodes
-            NodeItem("GenSeriesNode", label="Series"),
-            NodeItem("GenRangeNode", label="Range"),
+            #NodeItem("GenSeriesNode", label="Series float"),
+            #NodeItem("GenRangeNode", label="Range float"),
+            NodeItem("GenListRangeIntNode", label="Range Int"),
+            NodeItem("SvGenFloatRange", label="Range Float"),
             NodeItem("SvListInputNode", label="List Input"),
             NodeItem("RandomNode", label="Random"),
             NodeItem("FloatNode", label="Float"),
             NodeItem("IntegerNode", label="Int"),
             NodeItem("Float2IntNode", label="Float 2 Int"),
-            NodeItem("FormulaNode", label="Formula"),
+            # NodeItem("FormulaNode", label="Formula"),
             NodeItem("Formula2Node", label="Formula2"),
             NodeItem("ScalarMathNode", label="Math"),
+            NodeItem("SvMapRangeNode", label="Map Range"),
             ]),
         SverchNodeCategory("SVERCHOK_G", "SVERCHOK generator", items=[
             # objects, new elements, line, plane
@@ -201,7 +253,7 @@ def make_categories():
             NodeItem("SvScriptNode", label="Scripted Node")            
             ]),
         SverchNodeCategory("SVERCHOK_V", "SVERCHOK vector", items=[
-            # vectors and matrixes nodes
+            # Vector nodes
             NodeItem("GenVectorsNode", label="Vector in"),
             NodeItem("VectorsOutNode", label="Vector out"),
             NodeItem("VectorNormalNode", label="Vector' Normal"),
@@ -212,12 +264,15 @@ def make_categories():
             NodeItem("EvaluateLineNode", label="Vectors Evaluate"),
             NodeItem("SvVertSortNode", label="Vertices Sort"),
             NodeItem("SvNoiseNode", label="Noise"),
+        #    ]),
+        #SverchNodeCategory("SVERCHOK_Ma", "SVERCHOK matrix", items=[
+        #    # Matrix nodes
             NodeItem("MatrixApplyNode", label="Matrix Apply"),
             NodeItem("MatrixGenNode", label="Matrix in"),
             NodeItem("MatrixOutNode", label="Matrix out"),
+            NodeItem("SvMatrixValueIn", label="Matrix Input"),
             NodeItem("MatrixDeformNode", label="Matrix Deform"),
             NodeItem("MatrixShearNode", label="Shear Matrix"),
-            
             NodeItem("MatrixInterpolationNode", label="Matrix Interpolation"),
             ]),
         SverchNodeCategory("SVERCHOK_M", "SVERCHOK modifier", items=[
@@ -225,18 +280,19 @@ def make_categories():
             NodeItem("CentersPolsNode", label="Centers Polygons"),
             NodeItem("AdaptivePolsNode", label="Adaptive Polygons"),
             NodeItem("SvAdaptiveEdgeNode", label="Adaptive Edges"),
-            NodeItem("CrossSectionNode", label="Cross Section.old"),
-            NodeItem("SvBisectNode", label="Bisect.new"),
+            NodeItem("CrossSectionNode", label="Cross Section"),
+            NodeItem("SvBisectNode", label="Bisect"),
             NodeItem("SvSolidifyNode", label="Solidify"),
             NodeItem("SvWireframeNode", label="Wireframe"),
             NodeItem("LineConnectNode", label="Lines Connection"),
             NodeItem("DelaunayTriangulation2DNode", label="Delaunay 2D "),
-            NodeItem("Voronoi2DNode", label="Voronoi"),
+            NodeItem("Voronoi2DNode", label="Voronoi 2D"),
             NodeItem("PolygonBoomNode", label="Polygon Boom"),
             NodeItem("Pols2EdgsNode", label="Polygons to Edges"),
             NodeItem("SvMeshJoinNode", label="Mesh Join"),
             NodeItem("SvRemoveDoublesNode", label="Mesh Remove Doubles"),
             NodeItem("SvDeleteLooseNode", label="Delete Loose"),
+            NodeItem('SvSeparateMeshNode', label="Separate Loose Parts"),
             NodeItem("SvConvexHullNode", label="Convex Hull"),
             NodeItem("SvIntersectEdgesNode", label="Intersect Edges"),
             ]),
@@ -244,6 +300,7 @@ def make_categories():
             # investigate data
             NodeItem("DistancePPNode", label="Distances"),
             NodeItem("AreaNode", label="Area"),
+            NodeItem("SvBBoxNode", label="Bounding box"),
             NodeItem("SvKDTreeNode", label="KDTree Verts"),
             NodeItem("SvKDTreeEdgesNode", label="KDTree Edges"),
             ]),

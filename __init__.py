@@ -29,11 +29,10 @@
  #
  # -*- coding: utf-8 -*-
 
-
 bl_info = {
     "name": "Sverchok",
     "author": "Nedovizin Alexander, Gorodetskiy Nikita, Linus Yng, Agustin Jimenez, Dealga McArdle",
-    "version": (0, 2, 8),
+    "version": (0, 3, 0),
     "blender": (2, 7, 0), 
     "location": "Nodes > CustomNodesTree > Add user nodes",
     "description": "Do parametric node-based geometry programming",
@@ -55,7 +54,8 @@ if flag == False:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'sverchok_nodes'))
     sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'sverchok-master'))
 
-    print("sverchok_nodes: added to phytonpath :-)")
+    print("Sverchok_nodes: added to pythonpath :-)")
+    print("Have a nice day with Sverchok")
 
 
 
@@ -110,7 +110,7 @@ if "bpy" in locals():
     imp.reload(node_WifiIn)
     imp.reload(node_Formula)
     imp.reload(node_Formula2)
-    imp.reload(node_Tools)
+    imp.reload(Tools)
     imp.reload(node_AdaptivePolygons)
     imp.reload(node_AdaptiveEdges)
     imp.reload(node_CrossSection)
@@ -155,7 +155,16 @@ if "bpy" in locals():
     imp.reload(text_editor_Plugins)
     imp.reload(node_ListDecompose)
     imp.reload(node_Noise)
-    
+    imp.reload(node_BMeshview)
+    imp.reload(node_MatrixInput)
+    imp.reload(node_ListRangeInt)
+    imp.reload(node_DebugPrint)
+    imp.reload(node_ListRangeFloat)
+    imp.reload(node_BBox)
+    imp.reload(node_MapRange)
+    imp.reload(node_SeparateMesh)
+    imp.reload(node_GText)    
+
 else:
     import node_s
     import node_ScalarMath
@@ -206,7 +215,7 @@ else:
     import node_WifiIn
     import node_Formula
     import node_Formula2
-    import node_Tools
+    import Tools
     import node_AdaptivePolygons
     import node_AdaptiveEdges
     import node_CrossSection
@@ -251,6 +260,15 @@ else:
     import text_editor_Plugins
     import node_ListDecompose
     import node_Noise
+    import node_BMeshview
+    import node_MatrixInput
+    import node_ListRangeInt
+    import node_DebugPrint
+    import node_ListRangeFloat
+    import node_BBox
+    import node_MapRange
+    import node_SeparateMesh
+    import node_GText
 
 def register():
     import bpy
@@ -301,7 +319,7 @@ def register():
     node_WifiIn.register()
     node_Formula.register()
     node_Formula2.register()
-    node_Tools.register()
+    Tools.register()
     node_AdaptivePolygons.register()
     node_AdaptiveEdges.register()
     node_CrossSection.register()
@@ -346,6 +364,15 @@ def register():
     text_editor_Plugins.register()
     node_ListDecompose.register()
     node_Noise.register()
+    node_BMeshview.register()
+    node_MatrixInput.register()
+    node_ListRangeInt.register()
+    node_DebugPrint.register()
+    node_ListRangeFloat.register()
+    node_BBox.register()
+    node_MapRange.register()
+    node_SeparateMesh.register()
+    node_GText.register()
         
     if 'SVERCHOK' not in nodeitems_utils._node_categories:
         nodeitems_utils.register_node_categories("SVERCHOK", node_s.make_categories())
@@ -354,7 +381,16 @@ def register():
 def unregister():
     import bpy
     import nodeitems_utils
-    
+
+    node_GText.unregister()    
+    node_SeparateMesh.unregister()
+    node_MapRange.unregister()
+    node_BBox.unregister()
+    node_ListRangeFloat.unregister()
+    node_DebugPrint.unregister()
+    node_ListRangeInt.unregister()
+    node_MatrixInput.unregister()
+    node_BMeshview.unregister()
     node_Noise.unregister()
     node_ListDecompose.unregister()    
     text_editor_Plugins.unregister()    
@@ -397,9 +433,9 @@ def unregister():
     node_Solidify.unregister()
     node_Bisect.unregister()
     node_CrossSection.unregister()
-    node_node_AdaptiveEdges()
+    node_AdaptiveEdges.unregister()
     node_AdaptivePolygons.unregister()
-    node_Tools.unregister()
+    Tools.unregister()
     node_Formula2.unregister()
     node_Formula.unregister()
     node_WifiIn.unregister()
@@ -450,8 +486,8 @@ def unregister():
     if 'SVERCHOK' in nodeitems_utils._node_categories:
         nodeitems_utils.unregister_node_categories("SVERCHOK")
         
-if __name__ == "__main__":
-    register()
+#if __name__ == "__main__":
+    #register()
     #import nodeitems_utils
     #if 'SVERCHOK' in nodeitems_utils._node_categories:
         #unregister()

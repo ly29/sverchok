@@ -33,6 +33,8 @@ class ScalarMathNode(Node, SverchCustomTreeNode):
 
 # Math functions from http://docs.python.org/3.3/library/math.html
 # maybe this should be distilled to most common with the others available via Formula2 Node
+# And some constants etc.
+# Keep 4, columns number unchanged and only add new with unique number
     
     mode_items = [
         ("SINE",            "Sine",         "",1),
@@ -71,8 +73,14 @@ class ScalarMathNode(Node, SverchCustomTreeNode):
         ("PI",               "pi",          "",60),
         ("E",                "e",           "",61), 
         ("PHI",              "phi",         "",62),
+        ("TAU",              "tau",         "",63),
         ("MIN",              "min",         "",70),
         ("MAX",              "max",         "",71),    
+        ("-1",               "x-1",         "",80),
+        ("+1",               "x+1",         "",81),
+        ("*2",               "x*2",         "",82),
+        ("/2",               "x/2",         "",83),
+        ("x**2",             "x**2",        "",84),               
         ]
         
     fx = {
@@ -98,7 +106,13 @@ class ScalarMathNode(Node, SverchCustomTreeNode):
         'COSH':       cosh,
         'SINH':       sinh,
         'TANH':       tanh,
-        'ROUND':      round  
+        'ROUND':      round,
+        '+1':         lambda x:x+1,
+        '-1':         lambda x:x-1,
+        '*2':         lambda x:x*2,
+        '/2':         lambda x:x/2,
+        'POW2':       lambda x:x**2,
+            
     }
     
     fxy = {
@@ -117,6 +131,7 @@ class ScalarMathNode(Node, SverchCustomTreeNode):
     
     constant = {
         'PI':       pi,
+        'TAU':      pi*2,
         'E':        e,
         'PHI':      1.61803398875, 
     }       
@@ -166,7 +181,7 @@ class ScalarMathNode(Node, SverchCustomTreeNode):
         if 'float' in self.outputs and self.outputs['float'].links:
             result = []
             if nrInputs == 0:
-                result = [self.constant[self.items_]]
+                result = [[self.constant[self.items_]]]
             if nrInputs == 1:
                 if len(Number1):
                     x = Number1
